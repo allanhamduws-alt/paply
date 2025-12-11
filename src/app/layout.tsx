@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Wispr Flow Clone ✨",
-  description: "Voice-to-Polish MVP mit Deepgram & Gemini",
+  title: "paply - Voice Transcription",
+  description: "Sprachtranskription mit Groq Whisper und Claude Haiku Polish",
 };
 
 export default function RootLayout({
