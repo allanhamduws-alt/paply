@@ -10,43 +10,66 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-sans)", "system-ui", "-apple-system", "sans-serif"],
+        mono: ["var(--font-geist-mono)", "monospace"],
+      },
       colors: {
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        popover: "hsl(var(--popover))",
-        "popover-foreground": "hsl(var(--popover-foreground))",
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
-        },
+        background: "var(--background)",
+        foreground: "var(--foreground)",
         card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
+          DEFAULT: "var(--card)",
+          foreground: "var(--card-foreground)",
         },
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
+        popover: {
+          DEFAULT: "var(--popover)",
+          foreground: "var(--popover-foreground)",
+        },
         primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
+          DEFAULT: "var(--primary)",
+          foreground: "var(--primary-foreground)",
         },
         secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
+          DEFAULT: "var(--secondary)",
+          foreground: "var(--secondary-foreground)",
+        },
+        muted: {
+          DEFAULT: "var(--muted)",
+          foreground: "var(--muted-foreground)",
         },
         accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
+          DEFAULT: "var(--accent)",
+          foreground: "var(--accent-foreground)",
         },
-        ring: "hsl(var(--ring))",
+        destructive: {
+          DEFAULT: "var(--destructive)",
+          foreground: "var(--destructive-foreground)",
+        },
+        border: "var(--border)",
+        input: "var(--input)",
+        ring: "var(--ring)",
+        chart: {
+          "1": "var(--chart-1)",
+          "2": "var(--chart-2)",
+          "3": "var(--chart-3)",
+          "4": "var(--chart-4)",
+          "5": "var(--chart-5)",
+        },
+        sidebar: {
+          DEFAULT: "var(--sidebar)",
+          foreground: "var(--sidebar-foreground)",
+          primary: "var(--sidebar-primary)",
+          "primary-foreground": "var(--sidebar-primary-foreground)",
+          accent: "var(--sidebar-accent)",
+          "accent-foreground": "var(--sidebar-accent-foreground)",
+          border: "var(--sidebar-border)",
+          ring: "var(--sidebar-ring)",
+        },
       },
       borderRadius: {
-        lg: "14px",
-        md: "12px",
-        sm: "10px",
-      },
-      boxShadow: {
-        "soft-lg": "0 10px 40px rgba(0,0,0,0.08)",
-        "soft-sm": "0 6px 24px rgba(0,0,0,0.06)",
+        lg: "calc(var(--radius) + 4px)",
+        md: "calc(var(--radius) + 2px)",
+        sm: "var(--radius)",
       },
       keyframes: {
         pulseSoft: {
@@ -63,4 +86,3 @@ const config: Config = {
 };
 
 export default config;
-

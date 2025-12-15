@@ -1,18 +1,20 @@
 {
   "name": "paply-menubar",
-  "version": "1.4.3",
+  "version": "1.5.0",
   "description": "Menüleisten-App für Sprachtranskription mit Groq Whisper und optional Claude Haiku Polishing",
   "main": "electron-main.js",
   "scripts": {
-    "dev": "electron .",
-    "build": "electron-builder --mac --arm64 --publish never",
-    "build:universal": "electron-builder --mac --universal --publish never",
-    "build:win": "electron-builder --win --x64 --publish never",
-    "build:win:ia32": "electron-builder --win --ia32 --publish never",
-    "build:all": "electron-builder --mac --win --publish never",
-    "build:publish": "electron-builder --mac --win --publish always",
+    "dev": "npm run vite:build && electron .",
+    "dev:vite": "vite",
+    "vite:build": "vite build",
+    "build": "npm run vite:build && electron-builder --mac --arm64 --publish never",
+    "build:universal": "npm run vite:build && electron-builder --mac --universal --publish never",
+    "build:win": "npm run vite:build && electron-builder --win --x64 --publish never",
+    "build:win:ia32": "npm run vite:build && electron-builder --win --ia32 --publish never",
+    "build:all": "npm run vite:build && electron-builder --mac --win --publish never",
+    "build:publish": "npm run vite:build && electron-builder --mac --win --publish always",
     "generate:ico": "node scripts/generate-ico.js",
-    "start": "electron .",
+    "start": "npm run vite:build && electron .",
     "lint": "echo \"no lint configured\""
   },
   "keywords": [
@@ -27,16 +29,31 @@
   "license": "MIT",
   "dependencies": {
     "auto-launch": "^5.0.6",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.3.9",
     "form-data": "^4.0.0",
-    "node-fetch": "^3.3.2"
+    "lucide-react": "^0.561.0",
+    "node-fetch": "^3.3.2",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
     "@electron/notarize": "^2.5.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "autoprefixer": "^10.4.23",
     "electron": "^33.4.11",
     "electron-builder": "^24.13.3",
-    "sharp": "^0.34.5"
+    "postcss": "^8.5.6",
+    "sharp": "^0.34.5",
+    "tailwindcss": "^3.4.17",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0"
   },
   "build": {
     "appId": "com.paply.menubar",
@@ -74,7 +91,7 @@
     "win": {
       "icon": "icon.ico",
       "publisherName": "paply",
-      "signDlls": true,
+      "signDlls": false,
       "target": [
         {
           "target": "nsis",
@@ -82,23 +99,24 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
       "installerIcon": "icon.ico",
       "uninstallerIcon": "icon.ico",
-      "differentialPackage": true
+      "differentialPackage": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     },
     "files": [
       "electron-main.js",
       "preload.js",
-      "dashboard.html",
-      "settings.html",
-      "history.html",
-      "recording.html",
+      "renderer/**/*",
       "icon.png",
       "icon.ico",
       "iconTemplate.png",

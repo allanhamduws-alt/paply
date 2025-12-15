@@ -373,6 +373,19 @@ const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const GITHUB_REPO = 'allanhamduws-alt/paply';
 const CURRENT_VERSION = require('./package.json').version;
 
+// Verwirf reine Satzzeichen/Stille-Ergebnisse (z.B. "." oder "..." von Whisper bei Stille)
+function isTrivialTranscript(input) {
+  if (!input) return true;
+  const trimmed = input.trim();
+  if (!trimmed) return true;
+  // Entferne alle Nicht-Buchstaben/Nicht-Ziffern
+  const lettersOrDigits = trimmed.replace(/[^\p{L}\p{N}]+/gu, '');
+  if (!lettersOrDigits) return true;
+  // Sehr kurze Transkripte (1 Zeichen mit max 3 Gesamtlänge) sind trivial
+  if (lettersOrDigits.length < 2 && trimmed.length <= 3) return true;
+  return false;
+}
+
 async function transcribeAudio(audioBuffer, language = 'de') {
   const apiKey = getStore().get('groqApiKey');
   if (!apiKey) {
@@ -408,7 +421,15 @@ async function transcribeAudio(audioBuffer, language = 'de') {
     }
 
     const json = await res.json();
-    return json?.text?.trim() ?? '';
+    const rawText = json?.text?.trim() ?? '';
+    
+    // Filter triviale Transkripte (Stille, nur Satzzeichen, etc.)
+    if (isTrivialTranscript(rawText)) {
+      console.log('Transcript discarded (trivial):', rawText);
+      return '';
+    }
+    
+    return rawText;
   } catch (error) {
     clearTimeout(timeout);
     if (error.name === 'AbortError') throw new Error('Timeout nach 30s');
@@ -428,6 +449,16 @@ function getAutoUpdater() {
     autoUpdater = require('electron-updater').autoUpdater;
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
+    
+    // Für unsignierte Windows-Builds: Signatur-Prüfung deaktivieren
+    if (isWin) {
+      autoUpdater.forceDevUpdateConfig = true;
+    }
+    
+    // Logger für bessere Debugging-Infos
+    autoUpdater.logger = require('electron').app.isPackaged 
+      ? null 
+      : console;
   }
   return autoUpdater;
 }
@@ -631,12 +662,37 @@ function getPolishPrompt(text, language, flavor, customSettings = null) {
 
   const flavorRules = {
     code: `3. TECH-BEGRIFFE: Korrigiere falsch erkannte Tech-Begriffe (use state → useState, shad cn → shadcn, react hook, Next.js, type script → TypeScript)
-4. FORMATIERUNG: Behalte technische Begriffe präzise bei, keine Umschreibungen`,
-    meeting: `3. STRUKTUR: Formatiere als klare Stichpunkte wenn sinnvoll
-4. ACTION ITEMS: Markiere erkannte Aufgaben oder nächste Schritte
-5. NAMEN: Behalte Personennamen bei`,
-    plain: `3. NATÜRLICHKEIT: Behalte den natürlichen Sprachfluss bei
-4. MINIMALISMUS: Nur offensichtliche Fehler korrigieren, Stil beibehalten`,
+4. DATEINAMEN: Erkenne und formatiere Dateinamen korrekt:
+   - Setze @ vor Dateinamen mit Extensions (.ts, .tsx, .js, .jsx, .md, .json, .css, .html, .py, .go)
+   - "datei punkt extension" oder "datei extension" → @datei.extension
+   - "at dateiname" oder "ätt dateiname" → @dateiname
+   - CamelCase beibehalten: @RecordingWidget.tsx (nicht @recording widget.tsx)
+   - GROSSBUCHSTABEN beibehalten: @ROADMAP.md (nicht @Roadmap.md)
+   - Beispiele: "next config ts" → @next.config.ts, "roadmap md" → @ROADMAP.md
+5. FORMATIERUNG: Behalte technische Begriffe präzise bei, keine Umschreibungen`,
+    meeting: `3. PERSONEN: Formatiere Personennamen korrekt (Max Müller, nicht max müller)
+4. DATUM & ZEIT: Erkenne und formatiere:
+   - Datumsangaben: "am fünfzehnten dezember" → "am 15. Dezember"
+   - Uhrzeiten: "um vierzehn uhr" oder "um zwei uhr nachmittags" → "um 14:00 Uhr"
+   - Wochentage: korrekte Großschreibung (Montag, Dienstag, etc.)
+5. KONTAKT: Erkenne E-Mail und URLs:
+   - "max at firma punkt de" → "max@firma.de"
+   - "www punkt beispiel punkt com" → "www.beispiel.com"
+6. ACTION ITEMS: Markiere erkannte Aufgaben mit "→" oder "- [ ]" wenn passend
+7. STRUKTUR: Formatiere als klare Stichpunkte wenn mehrere Punkte genannt werden`,
+    plain: `3. SATZZEICHEN AUS SPRACHE: Erkenne gesprochene Interpunktion:
+   - "Punkt" → .
+   - "Komma" → ,
+   - "Fragezeichen" → ?
+   - "Ausrufezeichen" → !
+   - "Doppelpunkt" → :
+   - "Semikolon" → ;
+   - "Anführungszeichen" oder "Zitat" → „..."
+4. ABSÄTZE: Erkenne Absatzbefehle:
+   - "neuer Absatz" oder "Absatz" → Zeilenumbruch
+   - "neue Zeile" → Zeilenumbruch
+5. GROSS-/KLEINSCHREIBUNG: Korrekter Satzanfang, Substantive im Deutschen groß
+6. NATÜRLICHKEIT: Behalte den natürlichen Sprachfluss bei, minimale Eingriffe`,
   };
 
   const flavorRule = flavorRules[flavor] || flavorRules.code;
@@ -800,22 +856,8 @@ ${text}`;
 let lastScreenContext = null;
 
 // ============================================================================
-// SMART FILE TAGGING (Text-based)
+// SCREEN PARSER (Trigger Words)
 // ============================================================================
-
-// Common file extensions to detect
-const FILE_EXTENSIONS = [
-  'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs',
-  'html', 'css', 'scss', 'sass', 'less',
-  'json', 'yaml', 'yml', 'toml', 'xml',
-  'md', 'mdx', 'txt', 'csv',
-  'py', 'rb', 'go', 'rs', 'java', 'kt', 'swift',
-  'vue', 'svelte', 'astro',
-  'sql', 'graphql', 'gql',
-  'sh', 'bash', 'zsh', 'ps1',
-  'dockerfile', 'env', 'gitignore',
-  'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'ico'
-];
 
 // Trigger words that suggest screen context would be helpful
 const SCREEN_TRIGGER_WORDS = [
@@ -838,63 +880,6 @@ const SCREEN_TRIGGER_WORDS = [
   'move', 'rename', 'copy', 'paste',
   'this', 'here', 'current', 'above', 'below'
 ];
-
-/**
- * Extract file names from transcribed text and add @ tags
- * @param {string} text - The transcribed text
- * @returns {object} { taggedText, foundFiles }
- */
-function extractFileTagsFromText(text) {
-  if (!text) return { taggedText: text, foundFiles: [] };
-  
-  const foundFiles = [];
-  let taggedText = text;
-  
-  // Build regex pattern for file extensions
-  const extPattern = FILE_EXTENSIONS.join('|');
-  
-  // Match patterns like: filename.ext, Filename.ext, file-name.ext, file_name.ext
-  // Also match paths like: src/components/Button.tsx, ./utils/helper.js
-  const fileRegex = new RegExp(
-    `(?:^|\\s|["'\`(\\[{])` + // Start or whitespace or opening chars
-    `((?:[a-zA-Z0-9_\\-./]+/)?` + // Optional path prefix
-    `[a-zA-Z0-9_\\-]+\\.` + // Filename
-    `(?:${extPattern}))` + // Extension
-    `(?=[\\s.,;:!?"'\`()\\]}]|$)`, // End or punctuation
-    'gi'
-  );
-  
-  let match;
-  const matches = [];
-  
-  while ((match = fileRegex.exec(text)) !== null) {
-    const fileName = match[1];
-    if (fileName && !foundFiles.includes(fileName)) {
-      foundFiles.push(fileName);
-      matches.push({ fileName, index: match.index, fullMatch: match[0] });
-    }
-  }
-  
-  // Replace file names with @-tagged versions (from end to start to preserve indices)
-  matches.reverse().forEach(({ fileName, fullMatch }) => {
-    // Only tag if not already tagged
-    if (!taggedText.includes(`@${fileName}`)) {
-      taggedText = taggedText.replace(
-        new RegExp(`(?<!@)\\b${escapeRegex(fileName)}\\b`, 'g'),
-        `@${fileName}`
-      );
-    }
-  });
-  
-  return { taggedText, foundFiles };
-}
-
-/**
- * Escape special regex characters
- */
-function escapeRegex(string) {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 /**
  * Check if the text contains trigger words that suggest screen context would be helpful
@@ -1153,7 +1138,7 @@ function createMainWindow() {
     },
   });
 
-  mainWindow.loadFile(path.join(__dirname, 'dashboard.html'));
+  mainWindow.loadFile(path.join(__dirname, 'renderer', 'dashboard.html'));
   mainWindow.on('closed', () => { mainWindow = null; });
   
   // On macOS, clicking the dock icon should show the window
@@ -1184,12 +1169,15 @@ function createSettingsWindow() {
   }
 
   settingsWindow = new BrowserWindow({
-    width: 500,
-    height: 520,
-    resizable: false,
+    width: 520,
+    height: 640,
+    resizable: true,
     minimizable: false,
     maximizable: false,
+    minWidth: 420,
+    minHeight: 500,
     title: 'paply Einstellungen',
+    backgroundColor: '#F9FAFB',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -1197,7 +1185,7 @@ function createSettingsWindow() {
     },
   });
 
-  settingsWindow.loadFile(path.join(__dirname, 'settings.html'));
+  settingsWindow.loadFile(path.join(__dirname, 'renderer', 'settings.html'));
   settingsWindow.on('closed', () => { settingsWindow = null; });
 }
 
@@ -1220,7 +1208,7 @@ function createHistoryWindow() {
     },
   });
 
-  historyWindow.loadFile(path.join(__dirname, 'history.html'));
+  historyWindow.loadFile(path.join(__dirname, 'renderer', 'history.html'));
   historyWindow.on('closed', () => { historyWindow = null; });
 }
 
@@ -1264,7 +1252,7 @@ function createRecordingWindow() {
 
   recordingWindow = new BrowserWindow(windowOptions);
 
-  recordingWindow.loadFile(path.join(__dirname, 'recording.html'));
+  recordingWindow.loadFile(path.join(__dirname, 'renderer', 'recording.html'));
   recordingWindow.on('closed', () => { recordingWindow = null; });
 
   // Position: bottom center, slightly above the Dock
@@ -1630,7 +1618,6 @@ async function processAudioData(audioData, isRetry = false) {
 
   const s = getStore();
   const autopaste = s.get('autopaste');
-  let placeholderInserted = false;
 
   try {
     const language = s.get('language');
@@ -1639,11 +1626,7 @@ async function processAudioData(audioData, isRetry = false) {
 
     updateStatus('transcribing');
 
-    // Insert placeholder if autopaste and not retry
-    if (autopaste && !isRetry) {
-      await insertPlaceholder();
-      placeholderInserted = true;
-    }
+    // KEIN Placeholder mehr - wir fügen nur den finalen Text ein, wenn er bereit ist
 
     // Ensure audioData is a proper Buffer
     let audioBuffer;
@@ -1665,24 +1648,14 @@ async function processAudioData(audioData, isRetry = false) {
     const transcript = await transcribeAudio(audioBuffer, language);
     console.log('Transcript:', transcript);
 
+    // Bei leerer Transkription (Stille) einfach beenden - nichts ausgeben
     if (!transcript) {
-      if (placeholderInserted) {
-        replacePlaceholderWithText('');
-      }
+      console.log('Empty transcript - nothing to paste');
       updateStatus('done');
       setTimeout(() => recordingWindow?.hide(), 300);
       return { success: true, empty: true };
     }
 
-    // =========================================================================
-    // SMART FILE TAGGING - Extract and tag file names from transcript
-    // =========================================================================
-    const { taggedText: textWithTags, foundFiles } = extractFileTagsFromText(transcript);
-    
-    if (foundFiles.length > 0) {
-      console.log('Found files in transcript:', foundFiles);
-    }
-    
     // =========================================================================
     // SMART SCREEN CAPTURE - Only if trigger words detected
     // =========================================================================
@@ -1730,8 +1703,8 @@ async function processAudioData(audioData, isRetry = false) {
         }
       }
       
-      // Use tagged text as base
-      let enhancedTranscript = textWithTags;
+      // Use transcript as base (Claude will handle file name formatting in polish prompt)
+      let enhancedTranscript = transcript;
       
       // Add screen context if available (for coding agents)
       if (polishFlavor === 'code' || (customSettings && customSettings.domain === 'tech')) {
@@ -1744,8 +1717,8 @@ async function processAudioData(audioData, isRetry = false) {
       polished = await polishText(enhancedTranscript, language, polishFlavor, customSettings);
       console.log('Polished:', polished);
     } else {
-      // Even without polishing, use the tagged text
-      polished = textWithTags !== transcript ? textWithTags : null;
+      // No polishing - use transcript as-is
+      polished = null;
     }
 
     addToHistory({ transcript, polished, language });
@@ -1753,14 +1726,9 @@ async function processAudioData(audioData, isRetry = false) {
     const finalText = polished || transcript;
     const copyToClipboard = s.get('copyToClipboard');
 
+    // Direkt den finalen Text einfügen - kein Placeholder mehr
     if (autopaste) {
-      if (isRetry) {
-        // For retry, insert at cursor
-        await insertPlaceholder();
-        replacePlaceholderWithText(finalText);
-      } else {
-        replacePlaceholderWithText(finalText);
-      }
+      autopasteText(finalText);
     } else if (copyToClipboard) {
       clipboard.writeText(finalText);
     }
@@ -1775,9 +1743,7 @@ async function processAudioData(audioData, isRetry = false) {
   } catch (error) {
     console.error('Transcription error:', error);
     
-    if (placeholderInserted) {
-      replacePlaceholderWithText('');
-    }
+    // Bei Fehler nichts tun - es wurde kein Placeholder eingefügt
 
     // Keep backup for retry
     if (!isRetry) {
@@ -1899,15 +1865,24 @@ function registerAgentHotkeys() {
   });
   agentHotkeys = [];
 
-  // Standard-Agenten haben feste Hotkeys (Cmd+1, 2, 3)
+  const s = getStore();
+  const profiles = s.get('profiles') || {};
+  
+  // Standard-Agenten: Verwende benutzerdefinierte Hotkeys falls gesetzt, sonst Defaults
+  const defaultHotkeys = {
+    coding: isMac ? 'Command+1' : 'Ctrl+1',
+    meeting: isMac ? 'Command+2' : 'Ctrl+2',
+    dictation: isMac ? 'Command+3' : 'Ctrl+3',
+  };
+  
   const agents = [
-    { id: 'coding', key: isMac ? 'Command+1' : 'Ctrl+1' },
-    { id: 'meeting', key: isMac ? 'Command+2' : 'Ctrl+2' },
-    { id: 'dictation', key: isMac ? 'Command+3' : 'Ctrl+3' },
+    { id: 'coding', key: profiles.coding?.hotkey || defaultHotkeys.coding },
+    { id: 'meeting', key: profiles.meeting?.hotkey || defaultHotkeys.meeting },
+    { id: 'dictation', key: profiles.dictation?.hotkey || defaultHotkeys.dictation },
   ];
 
   // Custom Agents bekommen ihre benutzerdefinierten Hotkeys (wenn vorhanden)
-  const customAgents = getStore().get('customAgents') || [];
+  const customAgents = s.get('customAgents') || [];
   customAgents.forEach((agent) => {
     // Nur hinzufügen, wenn ein benutzerdefinierter Hotkey gesetzt ist
     if (agent.hotkey && agent.hotkey.trim()) {
@@ -2187,6 +2162,13 @@ function setupIpcHandlers() {
     if (profiles[profileId]) {
       profiles[profileId] = { ...profiles[profileId], ...updates };
       s.set('profiles', profiles);
+      
+      // Re-register hotkeys if hotkey was updated
+      if (updates.hotkey !== undefined) {
+        registerAgentHotkeys();
+        console.log(`Profile ${profileId} hotkey updated to: ${updates.hotkey || '(default)'}`);
+      }
+      
       return true;
     }
     return false;

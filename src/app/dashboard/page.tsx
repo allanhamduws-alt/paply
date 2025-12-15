@@ -4,6 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardAction,
+} from "@/components/ui/card";
+import {
   Check,
   Clipboard,
   Command,
@@ -216,11 +224,11 @@ export default function DashboardPage() {
   const micPulseClasses = isRecording ? "animate-pulse-soft bg-primary/20" : "bg-accent";
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted">
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
       <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-soft-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-sm">
               <Mic className="h-5 w-5" />
             </div>
             <div className="flex flex-col">
@@ -237,7 +245,7 @@ export default function DashboardPage() {
               size="sm"
               className={cn(
                 "px-3",
-                language === "de" && "bg-accent text-foreground",
+                language === "de" && "bg-accent text-accent-foreground",
               )}
               onClick={() => setLanguage("de")}
             >
@@ -249,7 +257,7 @@ export default function DashboardPage() {
               size="sm"
               className={cn(
                 "px-3",
-                language === "en" && "bg-accent text-foreground",
+                language === "en" && "bg-accent text-accent-foreground",
               )}
               onClick={() => setLanguage("en")}
             >
@@ -259,7 +267,7 @@ export default function DashboardPage() {
 
             <div className="mx-2 h-6 w-px bg-border" />
 
-            <div className="flex rounded-md border bg-card shadow-soft-sm">
+            <div className="flex rounded-md border bg-card shadow-sm">
               {(["Code", "Casual", "Formal"] as ToneMode[]).map((mode) => (
                 <button
                   key={mode}
@@ -268,8 +276,8 @@ export default function DashboardPage() {
                     if (mode === "Code") setFormatHint("code");
                   }}
                   className={cn(
-                    "px-3 py-1 text-sm transition hover:bg-accent",
-                    tone === mode && "bg-accent font-semibold",
+                    "px-3 py-1 text-sm transition hover:bg-accent hover:text-accent-foreground",
+                    tone === mode && "bg-accent font-semibold text-accent-foreground",
                   )}
                 >
                   {mode}
@@ -303,8 +311,8 @@ export default function DashboardPage() {
       </header>
 
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pb-16 pt-8 sm:px-6">
-        <section className="card">
-          <div className="flex flex-col gap-3 border-b px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <Card>
+          <CardHeader className="border-b">
             <div className="flex items-center gap-3">
               <Button
                 size="icon"
@@ -326,87 +334,89 @@ export default function DashboardPage() {
                 )}
               </Button>
               <div className="flex flex-col">
-                <p className="text-sm font-semibold text-foreground">
+                <CardTitle>
                   {isRecording ? "🎤 Aufnahme läuft..." : isTranscribing ? "⏳ Transkribiere..." : "Aufnahme"}
-                </p>
-                <p className="text-xs text-muted-foreground">
+                </CardTitle>
+                <CardDescription>
                   {isRecording ? "Klicke zum Stoppen" : "Klicke zum Starten · Groq Whisper"}
-                </p>
+                </CardDescription>
               </div>
             </div>
-            <div className="flex gap-2">
+            <CardAction>
               <Button variant="ghost" onClick={() => setTranscript("")} size="sm">
                 Reset
               </Button>
-            </div>
-          </div>
+            </CardAction>
+          </CardHeader>
 
-          <div className="px-6 pb-6 pt-4">
+          <CardContent>
             <Textarea
               ref={textareaRef}
               placeholder="Transkript erscheint hier nach der Aufnahme..."
               value={transcript}
               onChange={(e) => setTranscript(e.target.value)}
             />
-          </div>
-        </section>
+          </CardContent>
+        </Card>
 
-        <section className="card">
-          <div className="flex flex-col gap-3 border-b px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <Card>
+          <CardHeader className="border-b">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/10 text-secondary shadow-soft-sm">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-sm">
                 <Sparkles className="h-5 w-5" />
               </div>
               <div className="flex flex-col">
-                <p className="text-sm font-semibold text-foreground">AI Polish ✨</p>
-                <p className="text-xs text-muted-foreground">
+                <CardTitle>AI Polish ✨</CardTitle>
+                <CardDescription>
                   Entfernt Füllwörter · Fix Tech Terms · Formatiert
-                </p>
+                </CardDescription>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="primary"
-                onClick={handlePolish}
-                disabled={isPolishing || !transcript.trim()}
-              >
-                {isPolishing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Läuft...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" /> Polish
-                  </>
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleCopy}
-                disabled={!polished}
-              >
-                {copied ? (
-                  <>
-                    <Check className="h-4 w-4" /> Kopiert
-                  </>
-                ) : (
-                  <>
-                    <Clipboard className="h-4 w-4" /> Copy
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
+            <CardAction>
+              <div className="flex gap-2">
+                <Button
+                  variant="primary"
+                  onClick={handlePolish}
+                  disabled={isPolishing || !transcript.trim()}
+                >
+                  {isPolishing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Läuft...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" /> Polish
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleCopy}
+                  disabled={!polished}
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-4 w-4" /> Kopiert
+                    </>
+                  ) : (
+                    <>
+                      <Clipboard className="h-4 w-4" /> Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardAction>
+          </CardHeader>
 
-          <div className="px-6 pb-6 pt-4">
+          <CardContent>
             <Textarea
               placeholder="Polierter Prompt erscheint hier..."
               value={polished}
               onChange={(e) => setPolished(e.target.value)}
               className="min-h-[200px]"
             />
-          </div>
-        </section>
+          </CardContent>
+        </Card>
       </main>
 
       <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
