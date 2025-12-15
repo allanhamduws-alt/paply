@@ -2814,6 +2814,24 @@
 
     // Custom agents storage
     let customAgents = [];
+    
+    // Platform info (for hotkey display)
+    let platformInfo = { isMac: true, isWin: false };
+    
+    // Get platform-specific hotkey symbol
+    function getPlatformHotkey(number) {
+      return platformInfo.isMac ? `⌘${number}` : `Ctrl+${number}`;
+    }
+    
+    // Format hotkey for display based on platform
+    function formatHotkeyForDisplay(hotkey) {
+      if (!hotkey) return '';
+      if (platformInfo.isMac) {
+        return hotkey.replace('Command', '⌘').replace('Control', 'Ctrl').replace('Alt', '⌥').replace('Shift', '⇧');
+      } else {
+        return hotkey.replace('Command', 'Ctrl').replace('Control', 'Ctrl').replace('Alt', 'Alt').replace('Shift', 'Shift');
+      }
+    }
 
     // SVG Icon Map for agents
     const agentIcons = {
@@ -2833,9 +2851,31 @@
     function getAgentIconSvg(iconName) {
       return agentIcons[iconName] || agentIcons.star;
     }
+    
+    // Update platform-specific hotkeys in UI
+    function updatePlatformHotkeys() {
+      // Update standard agent hotkey badges
+      const codingHotkey = document.querySelector('[data-agent="coding"] .agent-hotkey');
+      const meetingHotkey = document.querySelector('[data-agent="meeting"] .agent-hotkey');
+      const dictationHotkey = document.querySelector('[data-agent="dictation"] .agent-hotkey');
+      
+      if (codingHotkey) codingHotkey.textContent = getPlatformHotkey(1);
+      if (meetingHotkey) meetingHotkey.textContent = getPlatformHotkey(2);
+      if (dictationHotkey) dictationHotkey.textContent = getPlatformHotkey(3);
+    }
 
     // Initialize
     async function init() {
+      // Load platform info first
+      try {
+        platformInfo = await window.electronAPI.getPlatform() || { isMac: true, isWin: false };
+      } catch (e) {
+        console.log('Platform detection not available, defaulting to Mac');
+      }
+      
+      // Update hotkey badges for standard agents based on platform
+      updatePlatformHotkeys();
+      
       // Load settings
       settings = await window.electronAPI.getSettings();
       
@@ -2891,7 +2931,7 @@
         const iconSvg = getAgentIconSvg(agent.icon);
         // Zeige benutzerdefinierten Hotkey oder nichts
         const hotkeyDisplay = agent.hotkey 
-          ? agent.hotkey.replace('Command', '⌘').replace('Control', 'Ctrl').replace('Alt', '⌥').replace('Shift', '⇧')
+          ? formatHotkeyForDisplay(agent.hotkey)
           : '';
         card.innerHTML = `
           ${hotkeyDisplay ? `<span class="agent-hotkey">${hotkeyDisplay}</span>` : ''}
@@ -3321,7 +3361,7 @@
           if (activeAgent) {
             const agent = customAgents.find(a => a.id === activeAgent);
             if (agent?.hotkey) {
-              agentHotkeyInput.value = agent.hotkey.replace('Command', '⌘').replace('Control', 'Ctrl').replace('Alt', '⌥').replace('Shift', '⇧');
+              agentHotkeyInput.value = formatHotkeyForDisplay(agent.hotkey);
               pendingAgentHotkey = agent.hotkey;
             } else {
               agentHotkeyInput.value = '';
@@ -3388,9 +3428,9 @@
     function showAgentSwitchToast(agentId) {
       // Standard agents
       const standardAgents = {
-        coding: { name: 'Coding', color: '#3B82F6', hotkey: '⌘1', icon: '💻' },
-        meeting: { name: 'Meeting', color: '#F7D154', hotkey: '⌘2', icon: '📅' },
-        dictation: { name: 'Diktat', color: '#7ED957', hotkey: '⌘3', icon: '✍️' }
+        coding: { name: 'Coding', color: '#3B82F6', hotkey: getPlatformHotkey(1), icon: '💻' },
+        meeting: { name: 'Meeting', color: '#F7D154', hotkey: getPlatformHotkey(2), icon: '📅' },
+        dictation: { name: 'Diktat', color: '#7ED957', hotkey: getPlatformHotkey(3), icon: '✍️' }
       };
 
       let name, color, hotkey, icon;
@@ -3407,8 +3447,7 @@
           name = customAgent.name;
           color = customAgent.color || '#7ED957';
           icon = customAgent.icon || '🎯';
-          const index = customAgents.indexOf(customAgent);
-          hotkey = `⌘${index + 4}`;
+          hotkey = customAgent.hotkey ? formatHotkeyForDisplay(customAgent.hotkey) : '';
         } else {
           name = agentId;
           color = '#7ED957';
@@ -3976,9 +4015,9 @@
       
       // Standard agent info (feste Hotkeys, nicht änderbar)
       const standardAgents = {
-        coding: { name: 'Coding', hotkey: '⌘1', isStandard: true },
-        meeting: { name: 'Meeting', hotkey: '⌘2', isStandard: true },
-        dictation: { name: 'Diktat', hotkey: '⌘3', isStandard: true }
+        coding: { name: 'Coding', hotkey: getPlatformHotkey(1), isStandard: true },
+        meeting: { name: 'Meeting', hotkey: getPlatformHotkey(2), isStandard: true },
+        dictation: { name: 'Diktat', hotkey: getPlatformHotkey(3), isStandard: true }
       };
       
       let agentName = activeAgent;
@@ -3997,7 +4036,7 @@
           agentName = customAgent.name;
           rawHotkey = customAgent.hotkey || '';
           agentHotkey = rawHotkey 
-            ? rawHotkey.replace('Command', '⌘').replace('Control', 'Ctrl').replace('Alt', '⌥').replace('Shift', '⇧')
+            ? formatHotkeyForDisplay(rawHotkey)
             : 'Kein Hotkey';
           isCustomAgent = true;
         }
@@ -4013,7 +4052,7 @@
         hotkeyGroup.style.display = isCustomAgent ? 'block' : 'none';
         if (isCustomAgent && hotkeyInput) {
           hotkeyInput.value = rawHotkey 
-            ? rawHotkey.replace('Command', '⌘').replace('Control', 'Ctrl').replace('Alt', '⌥').replace('Shift', '⇧')
+            ? formatHotkeyForDisplay(rawHotkey)
             : '';
         }
       }
@@ -4190,7 +4229,7 @@
       // Update hotkey tip
       const hotkeyTipText = document.getElementById('wizardHotkeyTipText');
       if (wizardData.hotkey) {
-        const displayHotkey = wizardData.hotkey.replace('Command', '⌘').replace('Control', 'Ctrl').replace('Alt', '⌥').replace('Shift', '⇧');
+        const displayHotkey = formatHotkeyForDisplay(wizardData.hotkey);
         hotkeyTipText.innerHTML = `Hotkey: <strong>${displayHotkey}</strong> – Drücke diesen Shortcut überall, um den Agent zu aktivieren.`;
       } else {
         hotkeyTipText.textContent = 'Kein Hotkey konfiguriert. Du kannst den Agent im Dashboard auswählen.';

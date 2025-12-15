@@ -229,11 +229,24 @@
 
     <!-- Retry Info (shown on error) -->
     <div class="retry-info" id="retryInfo">
-      <span class="retry-text">Erneut: <kbd>⌘⇧R</kbd></span>
+      <span class="retry-text">Erneut: <kbd id="retryHotkey">⌘⇧R</kbd></span>
     </div>
   </div>
 
   <script>
+    // Platform-specific hotkey display
+    async function initPlatformHotkeys() {
+      try {
+        const platform = await window.electronAPI.getPlatform?.();
+        const retryHotkey = document.getElementById('retryHotkey');
+        if (retryHotkey && platform && !platform.isMac) {
+          retryHotkey.textContent = 'Ctrl+Shift+R';
+        }
+      } catch (e) {
+        console.log('Platform detection not available');
+      }
+    }
+    initPlatformHotkeys();
     const widgetEl = document.getElementById('widget');
     const bars = [
       document.getElementById('bar0'),
